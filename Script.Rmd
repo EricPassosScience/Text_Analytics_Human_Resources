@@ -1,0 +1,449 @@
+---
+title: "Machine Learning - Text Analytics en Recursos Humanos"
+output:
+  pdf_document: default
+  html_notebook: default
+---
+
+Packages
+```{r}
+install.packages("qdap")
+install.packages("RWeka")
+install.packages("ggthemes")
+library(readr)
+library(qdap)
+library(tm)
+library(RWeka)
+library(wordcloud)
+library(plotrix)
+library(ggthemes)
+library(ggplot2)
+```
+Carga los datos
+```{r}
+df_amazon <- read_csv("amazon.csv")
+df_google <- read_csv("google.csv")
+```
+Visualizar los datos
+```{r}
+View(df_amazon)
+View(df_google)
+```
+
+Características de los datos
+```{r}
+str(df_amazon)
+str(df_google)
+```
+
+Dimensiones
+```{r}
+dim(df_amazon)
+dim(df_google)
+```
+Amazon pros y contras
+```{r}
+amazon_pros <- df_amazon$pros
+amazon_cons <- df_amazon$cons
+```
+
+Google pros y contras
+```{r}
+google_pros <- df_google$pros
+google_cons <- df_google$cons
+```
+
+*OPTIMIZÁCION DE TEXTO*
+
+Función de borrado de texto
+```{r}
+func_limpa_texto <- function(x){
+  
+  x <- na.omit(x)
+  x <- replace_abbreviation(x)
+  x <- replace_contraction(x)
+  x <- replace_number(x)
+  x <- replace_ordinal(x)
+  x <- replace_symbol(x)
+  x <- tolower(x)
+
+  return(x)
+}
+```
+
+Aplicar limpieza a los datos
+```{r}
+amazon_pros <- func_limpa_texto(amazon_pros)
+amazon_cons <- func_limpa_texto(amazon_cons)
+google_pros <- func_limpa_texto(google_pros)
+google_cons <- func_limpa_texto(google_cons)
+```
+
+El siguiente paso es conbertir el vector que contiene los datos de texto en un
+corpus. 
+
+Corpus es una colección de documentos, pero também es importante saber que en el
+paquete tm, R lo reconoce com um tipo de datos. 
+
+Usaremos el corpus volátil, que se guarda en la memoria RAM de la computadora en
+lugar de guardalo en el disco, solo para tener más eficiencia de memoria. 
+
+Para crear un corpus volátil, R necesita interpretar cada elemento en nuestra
+matrix de texto com un documento. 
+
+¡El paquete tm proporciona funciones para hacer precisamente eso!
+Usaremos una función de origen llamada VectorSource() porque nuestros datos de 
+texto están contenidos en un vector.
+
+```{r}
+?VCorpus
+amazon_p_corp <- VCorpus(VectorSource(amazon_pros))
+amazon_c_corp <- VCorpus(VectorSource(amazon_cons))
+google_p_corp <- VCorpus(VectorSource(google_pros))
+google_c_corp <- VCorpus(VectorSource(google_cons))
+```
+
+Ahora aplicamos limpieza al Corpus
+
+Función de limpieza de corpus
+```{r}
+func_limpa_corpus <- function(x){
+  
+  x <- tm_map(x,removePunctuation)
+  x <- tm_map(x,stripWhitespace)
+  x <- tm_map(x,removeWords, c(stopwords("en"), "Amazon", "Google", "Company"))
+  
+  return(x)
+}
+```
+
+Aplicando la función
+```{r}
+amazon_pros_corp <- func_limpa_corpus(amazon_p_corp)
+amazon_cons_corp <- func_limpa_corpus(amazon_c_corp)
+google_pros_corp <- func_limpa_corpus(google_p_corp)
+google_cons_corp <- func_limpa_corpus(google_c_corp)
+```
+
+*FEATURE EXTRACTION*
+
+Dado que amzn_pros_corp, amzn_cons_corp, goog_pros_corp y goog_cons_corp fueron
+preprocesados, ahora podemos extraer las características que queremos examinar. 
+
+Dado que estamos usando el enfoque de la bolsa de palabras (bag of words), podemos
+crear un bigrama TermDocumentMatrix para el corpus de reseñas positivas y negativas
+de Amazon. 
+
+A partir de esto, podemos crear rápidamente una nube de palabras para comprender
+qué frases las personas asocian positiba y negativamente con trabajar en Amazon. 
+
+Tokenización
+```{r}
+tokenizer <- function(x) 
+?NGramTokenizer
+NGramTokenizer(x, Weka_control(min = 2, max = 2))
+```
+Feature extration y análisis de revision positiva
+```{r}
+amazon_p_tdm    <- TermDocumentMatrix(amazon_pros_corp)
+amazon_p_tdm_m  <- as.matrix(amazon_p_tdm)
+amazon_p_freq   <- rowSums(amazon_p_tdm_m)
+amazon_p_f.sort <- sort(amazon_p_freq, decreasing = TRUE)
+```
+
+Plot
+```{r}
+barplot(amazon_p_freq[1:5])
+```
+
+Preparar datos para wordcloud
+```{r}
+amazon_p_tdm    <- TermDocumentMatrix(amazon_pros_corp, control = list(tokenize=tokenizer))
+amazon_p_tdm_m  <- as.matrix(amazon_p_tdm)
+amazon_p_freq   <- rowSums(amazon_p_tdm_m)
+amazon_p_f.sort <- sort(amazon_p_freq,decreasing = TRUE)
+```
+
+Crea el dataframe de comentarios positivos
+```{r}
+df_amazon_p <- data.frame(term = names(amazon_p_f.sort), num = amazon_p_f.sort)
+View(df_amazon_p)
+```
+
+Nube de palabras
+```{r}
+wordcloud(df_amazon_p$term, 
+          df_amazon_p$num, 
+          max.words = 100, 
+          color = "tomato4")
+```
+
+Feature extration y análisis de revision negativas
+```{r}
+amazon_c_tdm    <- TermDocumentMatrix(amazon_cons_corp, control = list(tokenize = tokenizer))
+amazon_c_tdm_m  <- as.matrix(amazon_c_tdm)
+amazon_c_freq   <- rowSums(amazon_c_tdm_m)
+amazon_c_f.sort <- sort(amazon_c_freq, decreasing = TRUE)
+```
+
+Crea el dataframe de comentarios positivos
+```{r}
+df_amazon_c <- data.frame(term = names(amazon_c_f.sort), num = amazon_c_f.sort)
+View(df_amazon_c)
+```
+
+Nube de palavras
+```{r}
+wordcloud(df_amazon_c$term,
+          df_amazon_c$num,
+          max.words = 100,
+          color = "palevioletred")
+```
+
+Parece haber una fuerte indicación de largas horas de trabajo y equilibrio entre
+el trabajo y la vida en las calificaciones. 
+
+Como técnica de agrupácion simple, realicemos una agrupación jerárquica y creemos
+un dendrograma para ver cómo se conectan estas oraciones. 
+
+```{r}
+amazon_c_tdm <- TermDocumentMatrix(amazon_cons_corp,control = list(tokenize = tokenizer))
+amazon_c_tdm <- removeSparseTerms(amazon_c_tdm, 0.993)
+```
+
+
+```{r}
+# Crear el dendograma
+amazon_c_hclust <- hclust(dist(amazon_c_tdm, method = "euclidean"), method = "complete")
+```
+
+
+```{r}
+# Plot
+plot(amazon_c_hclust)
+```
+
+Volviendo a los comentarios positivos, veamos las frases principales que aparecieron
+en las nubes de palabras. 
+
+Ahora esperemos encontrar téminos asociados usando la función finAssocs() del paquete
+tm.
+
+```{r}
+amazon_p_tdm    <- TermDocumentMatrix(amazon_pros_corp, control = list(tokenize=tokenizer))
+amazon_p_m      <- as.matrix(amazon_p_tdm)
+amazon_p_freq   <- rowSums(amazon_p_m)
+token_frequency <- sort(amazon_p_freq,decreasing = TRUE)
+token_frequency[1:5]
+```
+
+Encontrando las asociaciones
+```{r}
+findAssocs(amazon_p_tdm, "fast paced", 0.2)
+```
+
+Vamos a crear una nube de palabras comparativa de reseñas positivas y negativas de Google en comparación con Amazon. Esto le dará una comprensión rápida de los términos clave.
+```{r}
+all_google_pros   <- paste(df_google$pros, collapse = "")
+all_google_cons   <- paste(df_google$cons, collapse = "")
+all_google        <- c(all_google_pros,all_google_cons)
+all_google_clean  <- func_limpa_texto(all_google)
+all_google_vs     <- VectorSource(all_google_clean) 
+all_google_vc     <- VCorpus(all_google_vs)
+all_google_clean2 <- func_limpa_corpus(all_google_vc)
+all_google_tdm    <- TermDocumentMatrix(all_google_clean2)
+```
+
+Colnames
+```{r}
+colnames(all_google_tdm) <- c("Google Pros", "Google Cons")
+```
+
+Nube de comparación
+```{r}
+?comparison.cloud
+comparison.cloud(all_google_tdm_m, colors = c("orange", "blue"), max.words = 50)
+```
+
+Las reseñas positivas de Amazon parecen mencionar los bigramas como "buenos beneficios", 
+mientras que las reseñas negativas se centran en los bigramas como problemas de "equilibrio entre el trabaho y la via". 
+
+Por el contrario, las críticas positivas de Google mencionaran "ventahas", "gente
+inteligente", "buena comida" y "cultura divertida"entre otras cosas. Las reseñas
+negativas de Google hablan de "política", "crecimiento", "burocracia" y "gerencia
+intermedia". 
+
+Ahora crearemos un gráfico piramidal que aleinee las reseñas positivas de Amazon
+y Google para que pueda ver correctamente las diferencias entre los bigramas
+compartidos. 
+```{r}
+amazon_pro    <- paste(df_amazon$pros, collapse = "")
+google_pro    <- paste(df_google$pros, collapse = "")
+all_pro       <- c(amazon_pro, google_pro)
+all_pro_clean <- func_limpa_texto(all_pro)
+all_pro_vs    <- VectorSource(all_pro)
+all_pro_vc    <- VCorpus(all_pro_vs)
+all_pro_corp  <- func_limpa_corpus(all_pro_vc)
+```
+
+
+```{r}
+# Convertir a matriz
+tdm.bigram <- as.matrix(tdm.bigram)
+```
+
+
+```{r}
+# Palabras comunes
+common_words <- subset(tdm.bigram, tdm.bigram[,1] > 0 & tdm.bigram[,2] > 0 )
+```
+
+
+```{r}
+# Diferencia
+difference <- abs(common_words[, 1] - common_words[,2])
+```
+
+
+```{r}
+# Vectores finales
+common_words <- cbind(common_words, difference)
+common_words <- common_words[order(common_words[,3],decreasing = TRUE),]
+```
+
+
+```{r}
+# Dataframe
+top25_df <- data.frame(x = common_words[1:25,1], 
+                       y = common_words[1:25,2], 
+                       labels = rownames(common_words[1:25,]))
+```
+
+Plot
+```{r}
+pyramid.plot(top25_df$x,
+             top25_df$y,
+             labels=top25_df$labels,
+             gap=15,
+             top.labels=c("Amazon Pros", "Vs", "Google Pros"),
+             unit = NULL,
+             main = "Palavras em Comum")
+```
+
+Los empleados de Amazon mencionareon el "equilibrio entre el trabaho y la vida"
+como algo positivo. 
+
+En ambas organizaciones, la gente mencionó "cultura" y "gente" inteligente", por lo
+que hay algunos aspectos positivos similares entre las dos empresas. 
+
+Ahora dirijamos nuestra atención a las críticas negativas y creemos las mismas imágenes.
+```{r}
+amazon_cons    <- paste(df_amazon$cons, collapse = "")
+google_cons    <- paste(df_google$cons, collapse = "")
+all_cons       <- c(amazon_cons,google_cons)
+all_cons_clean <- func_limpa_texto(all_cons)
+all_cons_vs    <- VectorSource(all_cons)
+all_cons_vc    <- VCorpus(all_cons_vs)
+all_cons_corp  <- func_limpa_corpus(all_cons_vc)
+```
+
+
+```{r}
+# Matriz termo-documento
+tdm.cons_bigram = TermDocumentMatrix(all_cons_corp,control=list(tokenize =tokenizer))
+```
+
+
+```{r}
+# Preparación de datos como se hizo anteriormente
+colnames(tdm.cons_bigram) <- c("Amazon", "Google")
+tdm.cons_bigram <- as.matrix(tdm.cons_bigram)
+common_words <- subset(tdm.cons_bigram, tdm.cons_bigram[,1] > 0 & tdm.cons_bigram[,2] > 0 )
+difference <- abs(common_words[, 1] - common_words[,2])
+common_words <- cbind(common_words, difference)
+common_words <- common_words[order(common_words[,3], decreasing = TRUE),]
+```
+
+
+```{r}
+# Dataframe
+top25_df <- data.frame(x = common_words[1:25,1],
+                       y = common_words[1:25,2],
+                       labels = rownames(common_words[1:25,]))
+```
+
+
+```{r}
+# Plot
+pyramid.plot(top25_df$x,
+             top25_df$y,
+             labels=top25_df$labels,
+             gap=10,
+             top.labels = c("Amazon Cons","Vs","Google Cons"),
+             unit = NULL,
+             main = "Palavras em Comum")
+```
+
+
+Usaremos la nube de elementos comunes para mostrar lo que es común entre Amazon
+y Google con el tokenizador Unigran, Bigram y Trigam para identificar más información. 
+```{r}
+# Unigram
+tdm.unigram <- TermDocumentMatrix(all_pro_corp)
+colnames(tdm.unigram) <- c("Amazon","Google")
+tdm.unigram <- as.matrix(tdm.unigram)
+
+?commonality.cloud
+commonality.cloud(tdm.unigram, colors = c("tomato2", "yellow2"), max.words = 100)
+```
+
+
+```{r}
+# Bigram
+BigramTokenizer <- function(x) NGramTokenizer(x, Weka_control(min = 2, max = 2))
+tdm.bigram <- TermDocumentMatrix(all_pro_corp,control = list(tokenize=BigramTokenizer))
+colnames(tdm.bigram) <- c("Amazon", "Google")
+tdm.bigram <- as.matrix(tdm.bigram)
+
+commonality.cloud(tdm.bigram, colors = c("tomato2", "yellow2"), max.words = 100)
+```
+
+
+```{r}
+# Trigram
+TrigramTokenizer <- function(x) NGramTokenizer(x, Weka_control(min = 3, max = 3))
+tdm.trigram <- TermDocumentMatrix(all_pro_corp,control = list(tokenize=TrigramTokenizer))
+colnames(tdm.trigram) <- c("Amazon","Google")
+tdm.trigram <- as.matrix(tdm.trigram)
+
+commonality.cloud(tdm.trigram, colors = c("tomato2", "yellow2"), max.words = 100)
+```
+
+Palabras más frecuentes en los comentarios de los empreados
+```{r}
+amazon_tdm <- TermDocumentMatrix(amazon_p_corp)
+associations <- findAssocs(amazon_tdm,"fast",0.2)
+associations_df <- list_vect2df(associations)[,2:3] 
+
+ggplot(associations_df, aes(y = associations_df[,1])) +
+  geom_point(aes(x = associations_df[,2]),
+             data = associations_df, size = 3) + 
+  theme_gdocs()
+```
+
+
+```{r}
+google_tdm <- TermDocumentMatrix(google_c_corp)
+associations <- findAssocs(google_tdm,"fast",0.2)
+associations_df <- list_vect2df(associations)[,2:3] 
+
+ggplot(associations_df,aes(y=associations_df[,1])) +
+  geom_point(aes(x = associations_df[,2]),
+             data = associations_df, size = 3) + 
+  theme_gdocs()
+
+```
+
+*CONCLUSION*
+Google tiene un mejor equilibrio entre el trabajo y la vida personal según las reseñas
+de los empleados. 
