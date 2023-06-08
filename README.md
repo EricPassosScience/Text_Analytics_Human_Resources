@@ -11,3 +11,9 @@ Todos los detalles están dentro del script R.
 Se adjuntan ambos archivos.
 
 A partir de ahora, te adelanto que Google tiene el mejor balance.
+
+## Recomendación
+
+Si desea saber más sobre "Corpus", puede acceder a este archivo producido por Ariani Di Felippo (UFSCar) ariani@ufscar.br. 
+
+Archivo -> http://www.nilc.icmc.usp.br/nilc/download/ariani/DiFelippo_Ontobras_2010.pdf
